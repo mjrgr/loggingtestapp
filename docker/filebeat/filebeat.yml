@@ -1,0 +1,44 @@
+###################### Filebeat Configuration File #########################
+filebeat:
+  spool_size: 4096
+  prospectors:
+    - paths:
+        - /tmp/la/*.log
+      input_type: log
+      scan_frequency: 1s
+      max_bytes: 52428800
+      multiline:
+        pattern: '(^[0-9]{4}-[0-9]{2}-[0-9]{2}T)[0-9]{2}:[0-9]{2}:[0-9]{2}'
+        negate: true
+        match: after
+        max_lines: 1000000
+
+output:
+  elasticsearch:
+    enabled: true
+    hosts: ["es-master-node:9200"]
+    worker: 4
+    #pipeline: "pipe"
+    index: "fb-logging-app"
+    template:
+      name: "laTemplate"
+      path: "/template.json"
+      enabled: false
+      versions.2x.enabled: false
+
+  console:
+    enabled: true
+    pretty: true
+
+shipper:
+logging:
+  metrics:
+    enabled: false
+    period: 30s
+  level: info
+  to_files: true
+  files:
+    path: /var/log/fb
+    name: filebeat
+    rotateeverybytes: 10485760
+    keepfiles: 5

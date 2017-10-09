@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: LoggingApp
+
+endpoints:
+  health:
+    enabled: true

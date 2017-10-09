@@ -1,0 +1,117 @@
+version: '2'
+services:
+  # Logging Application Service
+  logging-app:
+    image: gradle:4.2-jdk-alpine
+    container_name: logging-app
+    environment:
+      - TZ=Europe/Paris
+      - logsDir=/tmp/la
+    volumes:
+      - ${WORK_DIR}:/logging-app
+      - ${LOGS_DIR}:/tmp/la:rw
+    command: gradle -b /logging-app/build.gradle bootRun
+
+  # ElasticSearch Service Nodes
+  es-master-node:
+    build: ./elasticsearch
+    image: elasticsearch
+    container_name: es-master-node
+    ports:
+      - 9200:9200
+    environment:
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g -Dlog4j2.disable.jmx=true
+      - http.cors.enabled=true
+      - http.cors.allow-origin=*
+      - cluster.name=Logging-Cluster
+      - node.name=es-master-node
+      - node.master=true
+      - node.data=false
+      - network.host=0.0.0.0
+      - discovery.zen.ping.unicast.hosts=es-master-node,es-data-node1,es-data-node2
+
+  es-data-node1:
+    build: ./elasticsearch
+    image: elasticsearch
+    container_name: es-data-node1
+    volumes:
+      - es-data-vol-node1:/usr/share/elasticsearch/data
+    environment:
+      - ES_JAVA_OPTS=-Xms2g -Xmx2g -Dlog4j2.disable.jmx=true
+      - cluster.name=Logging-Cluster
+      - node.name=es-data-node1
+      - node.master=false
+      - node.data=true
+      - network.host=0.0.0.0
+      - discovery.zen.ping.unicast.hosts=es-master-node,es-data-node1,es-data-node2
+
+  es-data-node2:
+    build: ./elasticsearch
+    image: elasticsearch
+    container_name: es-data-node2
+    volumes:
+      - es-data-vol-node2:/usr/share/elasticsearch/data
+    environment:
+      - ES_JAVA_OPTS=-Xms2g -Xmx2g -Dlog4j2.disable.jmx=true
+      - cluster.name=Logging-Cluster
+      - node.name=es-data-node2
+      - node.master=false
+      - node.data=true
+      - network.host=0.0.0.0
+      - discovery.zen.ping.unicast.hosts=es-master-node,es-data-node1,es-data-node2
+
+  # Kibana Service
+  kibana:
+    build: ./kibana
+    image: kibana
+    container_name: kibana
+    environment:
+      - TZ=Europe/Paris
+      - XPACK_SECURITY_ENABLED=false
+      - XPACK_MONITORING_ENABLED=false
+      - XPACK_MONITORING_UI_CONTAINER_ELASTICSEARCH_ENABLED=false
+      - ELASTICSEARCH_URL=http://es-master-node:9200
+    ports:
+      - 5601:5601
+
+  # FileBeat Service
+  filebeat:
+    build: ./filebeat
+    image: filebeat
+    container_name: filebeat
+    volumes:
+      - ${WORK_DIR}/docker/filebeat/template.json:/template.json:ro
+      - ${WORK_DIR}/docker/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ${LOGS_DIR}:/tmp/la:ro
+    command: filebeat -e -strict.perms=false
+    environment:
+      - TZ=Europe/Paris
+    depends_on:
+      - es-master-node
+
+  # HttpBeat Service
+  httpbeat:
+    image: peopleperhour/httpbeat
+    container_name: httpbeat
+    environment:
+      - ES_HOST=es-master-node
+      - ES_PORT=9200
+      - CONSOLE=true
+    volumes:
+      - ${WORK_DIR}/docker/httpbeat/httpbeat.yml:/opt/beats/http.yml:ro
+
+  # Monitoring Service
+  portainer:
+    image: portainer/portainer
+    container_name: monitoring
+    ports:
+      - 9999:9000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --no-auth
+
+volumes:
+  es-data-vol-node1:
+    driver: local
+  es-data-vol-node2:
+    driver: local

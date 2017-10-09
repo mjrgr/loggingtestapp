@@ -1,0 +1,22 @@
+############################## Httpbeat ########################################
+httpbeat:
+
+  hosts:
+    # Each - Host endpoints to call. Below are the host endpoint specific configurations
+    -
+      schedule: "@every 10s"
+      url: http://logging-app:8080/application/health
+      method: get
+      headers:
+        Accept: application/json
+      output_format: json
+      json_dot_mode: replace
+
+#================================ General =====================================
+fields:
+  app_id: logging-app
+
+#----------------------------- Logstash output --------------------------------
+output.elasticsearch:
+  hosts: ["es-master-node:9200"]
+  index: "httpbeat-%{+yyyy.MM.dd}"
